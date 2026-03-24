@@ -1,0 +1,9 @@
+import sqlite3
+# Устанавливаем соединение с базой данных
+connection = sqlite3.connect('mydatabase.db')
+cursor = connection.cursor ()
+# Добавляем нового пользователя
+cursor.execute('INSERT INTO Users (username, email, age) VALUES (?, ?, ?)', ('newuser', 'newuser@example.com', 28))
+# Сохраняем изменения и закрываем соединение
+connection.commit()
+connection.close()
