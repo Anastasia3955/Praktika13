@@ -1,0 +1,3 @@
+SELECT * FROM Авиабилеты
+ORDER BY Цена DESC
+LIMIT 1;
