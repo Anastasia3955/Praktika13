@@ -1,9 +1,11 @@
 from datetime import datetime
+import os
 from pathlib import Path
 import re
 import sqlite3
 import sys
 
+import PyQt5
 from PyQt5.QtCore import QDate, QSize, Qt
 from PyQt5.QtGui import QColor, QFont, QIcon, QPalette
 from PyQt5.QtWidgets import (
@@ -21,6 +23,33 @@ from login import Ui_Dialog as login_interface
 from main import Ui_MainWindow as main_interface
 from tovar import Ui_Dialog as tovar_interface
 from zakaz import Ui_Dialog as zakaz_interface
+
+
+def configure_qt_runtime():
+    pyqt_root = Path(PyQt5.__file__).resolve().parent
+    qt_root = pyqt_root / "Qt5"
+    plugin_root = qt_root / "plugins"
+    platform_root = plugin_root / "platforms"
+    bin_root = qt_root / "bin"
+
+    os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(platform_root))
+    os.environ.setdefault("QT_PLUGIN_PATH", str(plugin_root))
+
+    current_path = os.environ.get("PATH", "")
+    path_parts = current_path.split(os.pathsep) if current_path else []
+    if str(bin_root) not in path_parts:
+        os.environ["PATH"] = (
+            str(bin_root) + os.pathsep + current_path if current_path else str(bin_root)
+        )
+
+    add_dll_directory = getattr(os, "add_dll_directory", None)
+    if add_dll_directory is not None and bin_root.exists():
+        add_dll_directory(str(bin_root))
+
+    return plugin_root
+
+
+QT_PLUGIN_ROOT = configure_qt_runtime()
 
 
 DEFAULT_ROLE = "Гость"
@@ -1007,6 +1036,7 @@ def run_app():
     global repository, main_win, login_win
 
     app = QApplication(sys.argv)
+    app.addLibraryPath(str(QT_PLUGIN_ROOT))
     app.setStyle(QStyleFactory.create("Fusion"))
 
     palette = app.palette()
