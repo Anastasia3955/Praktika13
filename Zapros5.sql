@@ -1,0 +1,1 @@
+SELECT * FROM Заказы WHERE Количество = 2;
