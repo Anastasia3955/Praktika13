@@ -7,7 +7,7 @@ import sys
 
 import PyQt5
 from PyQt5.QtCore import QDate, QSize, Qt
-from PyQt5.QtGui import QColor, QFont, QIcon, QPalette
+from PyQt5.QtGui import QColor, QFont, QIcon
 from PyQt5.QtWidgets import (
     QApplication,
     QCompleter,
@@ -51,7 +51,6 @@ def configure_qt_runtime():
 
 QT_PLUGIN_ROOT = configure_qt_runtime()
 
-
 DEFAULT_ROLE = "Гость"
 ADMIN_ROLE = "Администратор"
 MANAGER_ROLE = "Менеджер"
@@ -83,17 +82,25 @@ def locate_database_path():
         Path.cwd() / "Polet.db",
         Path.home() / "Desktop" / "Git" / "Polet.db",
     ]
+
     for parent in current.parents:
         candidates.append(parent / "Polet.db")
         candidates.append(parent / "Git" / "Polet.db")
+
     seen = set()
     for candidate in candidates:
-        candidate = candidate.resolve()
+        try:
+            candidate = candidate.resolve()
+        except FileNotFoundError:
+            candidate = candidate.absolute()
+
         if candidate in seen:
             continue
         seen.add(candidate)
+
         if candidate.exists():
             return candidate
+
     raise FileNotFoundError("Не удалось найти файл Polet.db.")
 
 
@@ -102,23 +109,25 @@ def locate_resource(relative_path):
     candidates = [
         current.parent / relative_path,
         Path.cwd() / relative_path,
-        Path.home() / "Desktop" / "УП13" / "3_DataBase" / "Пример_Приложение_Обувь" / relative_path,
     ]
+
     for parent in current.parents:
         candidates.append(parent / relative_path)
-        candidates.append(parent / "Пример_Приложение_Обувь" / relative_path)
-        candidates.append(parent / "УП13" / "3_DataBase" / "Пример_Приложение_Обувь" / relative_path)
+
     seen = set()
     for candidate in candidates:
         try:
             candidate = candidate.resolve()
         except FileNotFoundError:
             candidate = candidate.absolute()
+
         if candidate in seen:
             continue
         seen.add(candidate)
+
         if candidate.exists():
             return candidate
+
     return None
 
 
@@ -211,15 +220,21 @@ class Repository:
         value = user_input.strip()
         if not value:
             return None
+
         bracket_match = re.search(r"\[(\d+)\]\s*$", value)
         if bracket_match:
             return self.get_client_by_id(int(bracket_match.group(1)))
+
         if value.isdigit():
             return self.get_client_by_id(int(value))
+
         for row in self.list_clients():
-            full_name = " ".join(part for part in [row["Фамилия"], row["Имя"], row["Отчество"]] if part)
+            full_name = " ".join(
+                part for part in [row["Фамилия"], row["Имя"], row["Отчество"]] if part
+            )
             if value.casefold() == full_name.casefold():
                 return row
+
         return None
 
     def next_ticket_id(self):
@@ -281,9 +296,11 @@ class Repository:
             )
         """
         params = [pattern, pattern, pattern, pattern, pattern]
+
         if ticket_type and ticket_type != TICKET_FILTER_LABEL:
             sql += ' AND t."Тип_самолета" = ?'
             params.append(ticket_type)
+
         sql += """
             GROUP BY
                 t."Код_билета",
@@ -294,12 +311,14 @@ class Repository:
                 t."Продолжительность_полета",
                 t."Цена"
         """
+
         if sort_mode == "asc":
-            sql += " ORDER BY quantity ASC, t.\"Код_билета\" ASC"
+            sql += ' ORDER BY quantity ASC, t."Код_билета" ASC'
         elif sort_mode == "desc":
-            sql += " ORDER BY quantity DESC, t.\"Код_билета\" ASC"
+            sql += ' ORDER BY quantity DESC, t."Код_билета" ASC'
         else:
             sql += ' ORDER BY t."Код_билета" ASC'
+
         return self.connection.execute(sql, params).fetchall()
 
     def get_ticket(self, ticket_id):
@@ -496,14 +515,17 @@ class mainWindow(QMainWindow):
     def _configure_ticket_filter(self, selected_text=None):
         types = self.repo.list_ticket_types()
         current_text = selected_text if selected_text is not None else self.ui.comboBox.currentText()
+
         self.ui.comboBox.blockSignals(True)
         self.ui.comboBox.clear()
         self.ui.comboBox.addItem(TICKET_FILTER_LABEL)
         self.ui.comboBox.addItems(types)
+
         if current_text and current_text in [TICKET_FILTER_LABEL, *types]:
             self.ui.comboBox.setCurrentText(current_text)
         else:
             self.ui.comboBox.setCurrentIndex(0)
+
         self.ui.comboBox.blockSignals(False)
 
     def _is_admin(self):
@@ -530,6 +552,7 @@ class mainWindow(QMainWindow):
     def read_zakaz(self):
         data = self.repo.list_orders()
         self.ui.tableWidget_2.setRowCount(len(data))
+
         for row_index, row in enumerate(data):
             full_name = " ".join(
                 part for part in [row["last_name"], row["first_name"], row["middle_name"]] if part
@@ -543,6 +566,7 @@ class mainWindow(QMainWindow):
                 str(row["order_id"]),
                 f"Скидка {row['discount']}%, {row['quantity']} шт.",
             ]
+
             for column_index, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
                 item.setData(Qt.UserRole, int(row["order_id"]))
@@ -551,6 +575,7 @@ class mainWindow(QMainWindow):
     def search_tovar(self):
         search_text = self.ui.lineEdit.text()
         selected_type = self.ui.comboBox.currentText()
+
         if self.ui.radioButton_3.isChecked():
             sort_mode = "asc"
         elif self.ui.radioButton.isChecked():
@@ -575,14 +600,16 @@ class mainWindow(QMainWindow):
                 f"Производитель: {row['destination']}<br>"
                 f"Поставщик: {row['plane_type']}<br>"
             )
+
             if float(row["discount"]) > 0:
                 discounted_price = float(row["price"]) * (100 - float(row["discount"])) / 100
                 summary += (
-                    f"Цена: <span style=\"color: red; text-decoration: line-through;\">{row['price']}</span>"
-                    f"<span style=\"color: black; font-weight: bold;\">   {discounted_price:.2f}</span><br>"
+                    f'Цена: <span style="color: red; text-decoration: line-through;">{row["price"]}</span>'
+                    f'<span style="color: black; font-weight: bold;">   {discounted_price:.2f}</span><br>'
                 )
             else:
                 summary += f"Цена: {row['price']}<br>"
+
             summary += "Единица измерения: билет<br>"
             summary += f"Количество на складе: {row['quantity']}"
 
@@ -594,10 +621,12 @@ class mainWindow(QMainWindow):
 
             discount_item = QTableWidgetItem(f"{row['discount']}%")
             bg_color = None
+
             if float(row["discount"]) > 15:
                 bg_color = "#2E8B57"
             if int(row["quantity"]) == 0:
                 bg_color = "#E0FFFF"
+
             if bg_color:
                 color = QColor(bg_color)
                 icon_item.setBackground(color)
@@ -631,6 +660,7 @@ class mainWindow(QMainWindow):
             self.ui.radioButton_2.setEnabled(True)
             self.ui.radioButton_3.setEnabled(True)
             self.read_zakaz()
+
         elif current_role == ADMIN_ROLE:
             self.ui.label_2.setText(current_fio)
             self.ui.comboBox.setEnabled(True)
@@ -644,6 +674,7 @@ class mainWindow(QMainWindow):
             self.ui.radioButton_2.setEnabled(True)
             self.ui.radioButton_3.setEnabled(True)
             self.read_zakaz()
+
         else:
             self.ui.label_2.setText(DEFAULT_ROLE)
             self.ui.comboBox.setEnabled(False)
@@ -676,6 +707,7 @@ class mainWindow(QMainWindow):
         if ticket_id is None:
             QMessageBox.critical(self, "Ошибка", "Выберите билет для удаления.", QMessageBox.Ok)
             return
+
         try:
             self.repo.delete_ticket(ticket_id)
         except ValidationError as exc:
@@ -684,6 +716,7 @@ class mainWindow(QMainWindow):
         except Exception:
             QMessageBox.critical(self, "Ошибка", "Не удалось удалить выбранный билет.", QMessageBox.Ok)
             return
+
         self.search_tovar()
         QMessageBox.information(self, "Информация", "Билет успешно удален.", QMessageBox.Ok)
 
@@ -692,11 +725,13 @@ class mainWindow(QMainWindow):
         if order_id is None:
             QMessageBox.critical(self, "Ошибка", "Выберите заказ для удаления.", QMessageBox.Ok)
             return
+
         try:
             self.repo.delete_order(order_id)
         except Exception:
             QMessageBox.critical(self, "Ошибка", "Не удалось удалить выбранный заказ.", QMessageBox.Ok)
             return
+
         self.read_zakaz()
         self.search_tovar()
         QMessageBox.information(self, "Информация", "Заказ успешно удален.", QMessageBox.Ok)
@@ -733,6 +768,7 @@ class loginWindow(QDialog):
         entered_login = self.ui.lineEdit.text().strip()
         password = self.ui.lineEdit_2.text().strip()
         user_data = AUTH_USERS.get(entered_login)
+
         if user_data and user_data["password"] == password:
             QMessageBox.information(
                 self,
@@ -749,6 +785,7 @@ class loginWindow(QDialog):
                 QMessageBox.Ok,
             )
             main_win.set_roles()
+
         self.hide()
         main_win.show()
 
@@ -800,10 +837,12 @@ class zakazWindow(QDialog):
             QMessageBox.critical(self, "Ошибка", "Не удалось загрузить выбранный заказ.", QMessageBox.Ok)
             self.reject()
             return
+
         self.ui.lineEdit.setText(str(order["ticket_id"]))
         self.ui.dateEdit.setDate(qdate_from_iso(order["order_date"]))
         self.ui.dateEdit_2.setDate(qdate_from_iso(order["departure_date"]))
         self.ui.lineEdit_4.setText(str(order["route"]))
+
         client_name = " ".join(
             part for part in [order["last_name"], order["first_name"], order["middle_name"]] if part
         )
@@ -819,11 +858,13 @@ class zakazWindow(QDialog):
             self.ui.lineEdit_4.clear()
             self.ui.dateEdit_2.setDate(QDate.currentDate())
             return
+
         ticket = self.repo.get_ticket(int(ticket_value))
         if ticket is None:
             self.ui.lineEdit_4.clear()
             self.ui.dateEdit_2.setDate(QDate.currentDate())
             return
+
         self.ui.lineEdit_4.setText(ticket["Маршрут"])
         self.ui.dateEdit_2.setDate(qdate_from_iso(ticket["Дата_вылета"]))
 
@@ -835,6 +876,7 @@ class zakazWindow(QDialog):
         ticket_text = self.ui.lineEdit.text().strip()
         if not ticket_text.isdigit():
             raise ValidationError("Укажите корректный код билета.")
+
         ticket_id = int(ticket_text)
         if self.repo.get_ticket(ticket_id) is None:
             raise ValidationError("Билет с указанным кодом не найден.")
@@ -851,6 +893,7 @@ class zakazWindow(QDialog):
                 raise ValidationError("Скидка должна быть числом.") from exc
         else:
             discount = 0.0
+
         if discount < 0:
             raise ValidationError("Скидка не может быть отрицательной.")
 
@@ -950,6 +993,7 @@ class tovarWindow(QDialog):
             QMessageBox.critical(self, "Ошибка", "Не удалось загрузить выбранный билет.", QMessageBox.Ok)
             self.reject()
             return
+
         self.ui.lineEdit.setText(str(ticket["Код_билета"]))
         self.ui.lineEdit.setReadOnly(True)
         self.ui.lineEdit_2.setText(ticket["Маршрут"])
@@ -1038,8 +1082,6 @@ def run_app():
     app = QApplication(sys.argv)
     app.addLibraryPath(str(QT_PLUGIN_ROOT))
     app.setStyle(QStyleFactory.create("Fusion"))
-
-
     app.setFont(QFont("Times New Roman", 12))
 
     try:
@@ -1055,3 +1097,7 @@ def run_app():
     exit_code = app.exec_()
     repository.close()
     sys.exit(exit_code)
+
+
+if __name__ == "__main__":
+    run_app()
